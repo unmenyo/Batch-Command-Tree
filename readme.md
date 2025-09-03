@@ -1,0 +1,1 @@
+gcc -o bct.exe main.c file_utils.c windows_utils.c -I.
