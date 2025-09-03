@@ -5,7 +5,17 @@
 #include "file_utils.h"
 #include "platform_utils.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 int main() {
+#ifdef _WIN32
+    // 设置控制台输出为UTF-8编码
+    SetConsoleOutputCP(CP_UTF8);
+    SetConsoleCP(CP_UTF8);
+#endif
+    
     char inputPath[MAX_PATH_LENGTH];
     char outputPath[MAX_PATH_LENGTH];
     char command[MAX_COMMAND_LENGTH];

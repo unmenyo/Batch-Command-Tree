@@ -5,6 +5,10 @@
 #include "file_utils.h"
 #include "platform_utils.h"
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 // 获取不带扩展名的文件名
 char* getFileNameWithoutExtension(const char* path) {
     static char result[MAX_PATH_LENGTH];
@@ -99,7 +103,21 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
             printf("Executing: %s\n", finalCommand);
             
             // 执行命令
-            int result = system(finalCommand);
+            int result;
+            
+            #ifdef _WIN32
+            // 在Windows上，使用宽字符API执行命令以确保UTF-8路径正确传递
+            wchar_t wcommand[MAX_COMMAND_LENGTH * 2];
+            int wlen = MultiByteToWideChar(CP_UTF8, 0, finalCommand, -1, wcommand, MAX_COMMAND_LENGTH * 2);
+            if (wlen > 0) {
+                result = _wsystem(wcommand);
+            } else {
+                result = system(finalCommand);
+            }
+            #else
+            result = system(finalCommand);
+            #endif
+            
             if (result != 0) {
                 printf("Error: Command execution failed (code: %d)\n", result);
                 
