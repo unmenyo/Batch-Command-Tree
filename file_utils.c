@@ -4,6 +4,7 @@
 #include <errno.h>
 #include "file_utils.h"
 #include "platform_utils.h"
+#include "log_utils.h"
 
 #ifdef _WIN32
 #include <windows.h>
@@ -101,6 +102,7 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
             }
             
             printf("Executing: %s\n", finalCommand);
+            logMessage(LOG_INFO, "Executing: %s", finalCommand);
             
             // 执行命令
             int result;
@@ -120,10 +122,13 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
             
             if (result != 0) {
                 printf("Error: Command execution failed (code: %d)\n", result);
+                logMessage(LOG_ERROR, "Command execution failed (code: %d)", result);
+                logCommandError(finalCommand, current->path, result);
                 
                 // 如果启用了命令失败时复制源文件的功能
                 if (copyOnError) {
                     printf("Attempting to copy source file...\n");
+                    logMessage(LOG_INFO, "Attempting to copy source file");
                     
                     // 构建目标文件路径
                     char targetPath[MAX_PATH_LENGTH];
@@ -132,10 +137,14 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
                     // 复制源文件到目标路径
                     if (!copyFileWithPath(current->path, targetPath)) {
                         printf("Copying source file also failed\n");
+                        logMessage(LOG_ERROR, "Copying source file also failed");
+                    } else {
+                        logMessage(LOG_INFO, "Source file copied successfully");
                     }
                 }
             } else {
                 printf("Command executed successfully\n");
+                logMessage(LOG_INFO, "Command executed successfully");
             }
         }
         

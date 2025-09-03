@@ -6,6 +6,7 @@
 #include <errno.h>
 #include "file_utils.h"
 #include "platform_utils.h"
+#include "log_utils.h"
 
 // 辅助函数：将UTF-8字符串转换为宽字符串
 static void utf8_to_wchar(const char* utf8, wchar_t* wstr, size_t wstr_size) {
@@ -21,14 +22,23 @@ static void wchar_to_utf8(const wchar_t* wstr, char* utf8, size_t utf8_size) {
 int pathExists(const char* path) {
     wchar_t wpath[MAX_PATH_LENGTH];
     utf8_to_wchar(path, wpath, MAX_PATH_LENGTH);
-    return GetFileAttributesW(wpath) != INVALID_FILE_ATTRIBUTES;
+    DWORD attrs = GetFileAttributesW(wpath);
+    if (attrs == INVALID_FILE_ATTRIBUTES) {
+        logMessage(LOG_WARNING, "Path does not exist: %s", path);
+        return 0;
+    }
+    return 1;
 }
 
 // 创建目录
 int createDirectory(const char* path) {
     wchar_t wpath[MAX_PATH_LENGTH];
     utf8_to_wchar(path, wpath, MAX_PATH_LENGTH);
-    return _wmkdir(wpath);
+    int result = _wmkdir(wpath);
+    if (result != 0 && errno != EEXIST) {
+        logMessage(LOG_ERROR, "Cannot create directory: %s", path);
+    }
+    return result;
 }
 
 // 递归打印文件树
@@ -44,6 +54,7 @@ void printFileTree(const char* path, int depth) {
     
     hFind = FindFirstFileW(searchPath, &findFileData);
     if (hFind == INVALID_HANDLE_VALUE) {
+        logMessage(LOG_WARNING, "Cannot open directory: %s", path);
         return;
     }
     
@@ -89,6 +100,7 @@ FileEntry* buildFileList(const char* path, FileEntry* list) {
     
     hFind = FindFirstFileW(searchPath, &findFileData);
     if (hFind == INVALID_HANDLE_VALUE) {
+        logMessage(LOG_WARNING, "Cannot open directory for building file list: %s", path);
         return list;
     }
     
@@ -137,6 +149,7 @@ void createDirectoryTree(const char* inputPath, const char* outputPath) {
     
     hFind = FindFirstFileW(searchPath, &findFileData);
     if (hFind == INVALID_HANDLE_VALUE) {
+        logMessage(LOG_WARNING, "Cannot open directory for creating directory tree: %s", inputPath);
         return;
     }
     
@@ -157,7 +170,7 @@ void createDirectoryTree(const char* inputPath, const char* outputPath) {
             
             // 使用createDirectory函数创建目录（该函数已经支持UTF-8）
             if (createDirectory(outputDir) != 0 && errno != EEXIST) {
-                printf("Warning: Cannot create directory %s\n", outputDir);
+                logMessage(LOG_WARNING, "Cannot create directory %s", outputDir);
             }
             
             // 递归处理子目录
@@ -191,17 +204,17 @@ int copyFileWithPath(const char* source, const char* destination) {
             // 将宽字符目录路径转换为UTF-8以便打印错误信息
             char utf8Dir[MAX_PATH_LENGTH];
             wchar_to_utf8(destDir, utf8Dir, MAX_PATH_LENGTH);
-            printf("Error: Cannot create directory %s\n", utf8Dir);
+            logMessage(LOG_ERROR, "Cannot create directory %s", utf8Dir);
             return 0;
         }
     }
     
     // 复制文件
     if (CopyFileW(wsource, wdestination, FALSE)) {
-        printf("Copy successful: %s -> %s\n", source, destination);
+        logMessage(LOG_INFO, "Copy successful: %s -> %s", source, destination);
         return 1;
     } else {
-        printf("Error: Failed to copy file %s -> %s\n", source, destination);
+        logMessage(LOG_ERROR, "Failed to copy file %s -> %s", source, destination);
         return 0;
     }
 }
