@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <ctype.h>
 #include "file_utils.h"
 #include "platform_utils.h"
 #include "log_utils.h"
@@ -27,6 +28,65 @@ char* getFileNameWithoutExtension(const char* path) {
     return result;
 }
 
+// 获取文件扩展名（小写）
+char* getFileExtension(const char* path) {
+    static char result[16] = {0};
+    char* lastDot = strrchr(path, '.');
+    
+    if (lastDot != NULL) {
+        strncpy(result, lastDot + 1, 15);
+        result[15] = '\0';
+        
+        // 转换为小写
+        for (int i = 0; result[i]; i++) {
+            result[i] = tolower(result[i]);
+        }
+    } else {
+        result[0] = '\0';
+    }
+    
+    return result;
+}
+
+// 检查文件是否应该被排除
+int shouldExcludeFile(const char* filename, const char* excludeExtensions) {
+    if (excludeExtensions == NULL || excludeExtensions[0] == '\0') {
+        return 0;
+    }
+    
+    char* ext = getFileExtension(filename);
+    if (ext[0] == '\0') {
+        return 0;
+    }
+    
+    // 复制排除扩展名字符串以便处理
+    char exts[MAX_EXTENSIONS_LENGTH];
+    strncpy(exts, excludeExtensions, MAX_EXTENSIONS_LENGTH - 1);
+    exts[MAX_EXTENSIONS_LENGTH - 1] = '\0';
+    
+    // 转换为小写
+    for (int i = 0; exts[i]; i++) {
+        exts[i] = tolower(exts[i]);
+    }
+    
+    // 检查扩展名是否在排除列表中
+    char* token = strtok(exts, " ,;");
+    while (token != NULL) {
+        // 移除可能的前导点
+        if (token[0] == '.') {
+            token++;
+        }
+        
+        if (strcmp(ext, token) == 0) {
+            return 1;
+        }
+        
+        token = strtok(NULL, " ,;");
+    }
+    
+    return 0;
+}
+
 // 计算文件列表中非目录文件的数量
 int countFiles(FileEntry* list) {
     int count = 0;
@@ -43,13 +103,14 @@ int countFiles(FileEntry* list) {
 }
 
 // 处理文件
-void processFiles(FileEntry* fileList, const char* inputPath, const char* outputPath, const char* command, int copyOnError) {
+void processFiles(FileEntry* fileList, const char* inputPath, const char* outputPath, const char* command, int copyOnError, const char* excludeExtensions) {
     // 首先创建完整的目录树
     createDirectoryTree(inputPath, outputPath);
     
     // 计算总文件数和当前处理进度
     int totalFiles = countFiles(fileList);
     int processedFiles = 0;
+    int excludedFiles = 0;
     
     FileEntry* current = fileList;
     
@@ -57,9 +118,45 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
         if (!current->is_directory) {
             processedFiles++;
             
+            // 检查文件是否应该被排除
+            if (shouldExcludeFile(current->path, excludeExtensions)) {
+                excludedFiles++;
+                printf("Excluding file %d/%d: %s (extension excluded)\n", processedFiles, totalFiles, current->path);
+                logMessage(LOG_INFO, "Excluding file %d/%d: %s (extension excluded)", processedFiles, totalFiles, current->path);
+                
+                // 如果启用了复制功能，复制被排除的文件
+                if (copyOnError) {
+                    // 计算相对路径
+                    const char* relativePath = current->path + strlen(inputPath);
+                    
+                    // 构建目标文件路径
+                    char targetPath[MAX_PATH_LENGTH];
+                    snprintf(targetPath, MAX_PATH_LENGTH, "%s%s", outputPath, relativePath);
+                    
+                    printf("Copying excluded file: %s -> %s\n", current->path, targetPath);
+                    logMessage(LOG_INFO, "Copying excluded file: %s -> %s", current->path, targetPath);
+                    
+                    // 复制源文件到目标路径
+                    if (!copyFileWithPath(current->path, targetPath)) {
+                        printf("Copying excluded file failed\n");
+                        logMessage(LOG_ERROR, "Copying excluded file failed");
+                    } else {
+                        printf("Excluded file copied successfully\n");
+                        logMessage(LOG_INFO, "Excluded file copied successfully");
+                    }
+                }
+                
+                // 更新进度显示
+                printf("Progress: %d/%d files processed (%d excluded)\n\n", processedFiles - excludedFiles, totalFiles - excludedFiles, excludedFiles);
+                logMessage(LOG_INFO, "Progress: %d/%d files processed (%d excluded)", processedFiles - excludedFiles, totalFiles - excludedFiles, excludedFiles);
+                
+                current = current->next;
+                continue;
+            }
+            
             // 更新进度显示
-            printf("Processing file %d/%d: %s\n", processedFiles, totalFiles, current->path);
-            logMessage(LOG_INFO, "Processing file %d/%d: %s", processedFiles, totalFiles, current->path);
+            printf("Processing file %d/%d: %s\n", processedFiles - excludedFiles, totalFiles - excludedFiles, current->path);
+            logMessage(LOG_INFO, "Processing file %d/%d: %s", processedFiles - excludedFiles, totalFiles - excludedFiles, current->path);
             
             // 计算相对路径
             const char* relativePath = current->path + strlen(inputPath);
@@ -173,8 +270,8 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
             }
             
             // 更新进度显示
-            printf("Progress: %d/%d files processed\n\n", processedFiles, totalFiles);
-            logMessage(LOG_INFO, "Progress: %d/%d files processed", processedFiles, totalFiles);
+            printf("Progress: %d/%d files processed (%d excluded)\n\n", processedFiles - excludedFiles, totalFiles - excludedFiles, excludedFiles);
+            logMessage(LOG_INFO, "Progress: %d/%d files processed (%d excluded)", processedFiles - excludedFiles, totalFiles - excludedFiles, excludedFiles);
         }
         
         current = current->next;

@@ -20,6 +20,7 @@ int main() {
     char inputPath[MAX_PATH_LENGTH];
     char outputPath[MAX_PATH_LENGTH];
     char command[MAX_COMMAND_LENGTH];
+    char excludeExtensions[MAX_EXTENSIONS_LENGTH];
     char choice[10];
     int copyOnError = 0;
     
@@ -85,6 +86,12 @@ int main() {
         logMessage(LOG_INFO, "Copy on error feature disabled");
     }
     
+    // 询问用户要排除的文件扩展名
+    printf("Enter file extensions to exclude (separated by spaces or commas, e.g., txt log bak): ");
+    fgets(excludeExtensions, MAX_EXTENSIONS_LENGTH, stdin);
+    excludeExtensions[strcspn(excludeExtensions, "\n")] = 0;
+    logMessage(LOG_INFO, "Exclude extensions: %s", excludeExtensions);
+    
     // 创建输出目录（如果不存在）
     if (createDirectory(outputPath) != 0 && errno != EEXIST) {
         printf("Error: Cannot create output directory\n");
@@ -102,15 +109,26 @@ int main() {
     printf("\nFound %d files to process\n", totalFiles);
     logMessage(LOG_INFO, "Found %d files to process", totalFiles);
     
+    if (excludeExtensions[0] != '\0') {
+        printf("Files with extensions %s will be excluded", excludeExtensions);
+        if (copyOnError) {
+            printf(" and copied to output directory\n");
+        } else {
+            printf("\n");
+        }
+        logMessage(LOG_INFO, "Files with extensions %s will be excluded%s", 
+                  excludeExtensions, copyOnError ? " and copied to output directory" : "");
+    }
+    
     printf("\nStarting file processing...\n");
     logMessage(LOG_INFO, "Starting file processing");
-    processFiles(fileList, inputPath, outputPath, command, copyOnError);
+    processFiles(fileList, inputPath, outputPath, command, copyOnError, excludeExtensions);
     
     // 清理
     freeFileList(fileList);
     
-    printf("Processing completed! Processed %d files.\n", totalFiles);
-    logMessage(LOG_INFO, "Processing completed! Processed %d files.", totalFiles);
+    printf("Processing completed!\n");
+    logMessage(LOG_INFO, "Processing completed!");
     closeLogging();
     
     system("pause");
