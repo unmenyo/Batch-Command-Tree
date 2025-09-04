@@ -20,4 +20,7 @@ void createDirectoryTree(const char* inputPath, const char* outputPath);
 char* getFileNameWithoutExtension(const char* path);
 int copyFileWithPath(const char* source, const char* destination);
 
+// 新增函数声明
+int countFiles(FileEntry* list);
+
 #endif

@@ -97,6 +97,11 @@ int main() {
     FileEntry* fileList = NULL;
     fileList = buildFileList(inputPath, fileList);
     
+    // 计算总文件数
+    int totalFiles = countFiles(fileList);
+    printf("\nFound %d files to process\n", totalFiles);
+    logMessage(LOG_INFO, "Found %d files to process", totalFiles);
+    
     printf("\nStarting file processing...\n");
     logMessage(LOG_INFO, "Starting file processing");
     processFiles(fileList, inputPath, outputPath, command, copyOnError);
@@ -104,8 +109,8 @@ int main() {
     // 清理
     freeFileList(fileList);
     
-    printf("Processing completed!\n");
-    logMessage(LOG_INFO, "Processing completed");
+    printf("Processing completed! Processed %d files.\n", totalFiles);
+    logMessage(LOG_INFO, "Processing completed! Processed %d files.", totalFiles);
     closeLogging();
     
     system("pause");

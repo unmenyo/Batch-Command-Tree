@@ -27,15 +27,40 @@ char* getFileNameWithoutExtension(const char* path) {
     return result;
 }
 
+// 计算文件列表中非目录文件的数量
+int countFiles(FileEntry* list) {
+    int count = 0;
+    FileEntry* current = list;
+    
+    while (current != NULL) {
+        if (!current->is_directory) {
+            count++;
+        }
+        current = current->next;
+    }
+    
+    return count;
+}
+
 // 处理文件
 void processFiles(FileEntry* fileList, const char* inputPath, const char* outputPath, const char* command, int copyOnError) {
     // 首先创建完整的目录树
     createDirectoryTree(inputPath, outputPath);
     
+    // 计算总文件数和当前处理进度
+    int totalFiles = countFiles(fileList);
+    int processedFiles = 0;
+    
     FileEntry* current = fileList;
     
     while (current != NULL) {
         if (!current->is_directory) {
+            processedFiles++;
+            
+            // 更新进度显示
+            printf("Processing file %d/%d: %s\n", processedFiles, totalFiles, current->path);
+            logMessage(LOG_INFO, "Processing file %d/%d: %s", processedFiles, totalFiles, current->path);
+            
             // 计算相对路径
             const char* relativePath = current->path + strlen(inputPath);
             
@@ -146,6 +171,10 @@ void processFiles(FileEntry* fileList, const char* inputPath, const char* output
                 printf("Command executed successfully\n");
                 logMessage(LOG_INFO, "Command executed successfully");
             }
+            
+            // 更新进度显示
+            printf("Progress: %d/%d files processed\n\n", processedFiles, totalFiles);
+            logMessage(LOG_INFO, "Progress: %d/%d files processed", processedFiles, totalFiles);
         }
         
         current = current->next;
